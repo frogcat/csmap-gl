@@ -40,9 +40,9 @@
     var MAPBOX_TERRAIN_RGB = "https://api.mapbox.com/v4/mapbox.terrain-rgb/{z}/{x}/{y}.pngraw?access_token=" + MAPBOX_PUBLIC_ACCESS_TOKEN;
     var MAPBOX_BASEMAP = "https://api.mapbox.com/v4/mapbox.streets/{z}/{x}/{y}.png?access_token=" + MAPBOX_PUBLIC_ACCESS_TOKEN;
     var map = L.map("map", L.extend({
-      zoom: 12,
+      zoom: 8,
       maxZoom: 14,
-      center: [35.3538, 138.8279]
+      center: [19.844, 204.662]
     }, L.Hash.parseHash(location.hash)));
     map.zoomControl.setPosition("bottomright");
 
