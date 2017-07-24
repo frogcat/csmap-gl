@@ -7,68 +7,52 @@
 
   var vertexShaderSource = getString((function() {
     /*
-attribute vec2 a_position;
-attribute vec2 a_texCoord;
-uniform vec2 u_resolution;
-varying vec2 v_texCoord;
+attribute vec2 clip;
+varying vec2 center;
 void main() {
-  vec2 zeroToOne = a_position / u_resolution;
-  vec2 zeroToTwo = zeroToOne * 2.0;
-  vec2 clipSpace = zeroToTwo - 1.0;
-  gl_Position = vec4(clipSpace * vec2(1.0, -1.0), 0, 1);
-  v_texCoord = a_texCoord;
+  gl_Position = vec4(clip,0.0,1.0);
+  center = vec2(clip.x + 1.0, 1.0 - clip.y) * 0.5;
 }
 */
   }));
   var fragmentShaderSource = getString((function() {
     /*
 precision mediump float;
-uniform sampler2D u_image;
-uniform vec2 u_textureSize;
-uniform float u_meterPerPixel;
-uniform float u_curvature;
-uniform float u_slope;
-varying vec2 v_texCoord;
+uniform sampler2D image;
+uniform vec2 size;
+uniform vec2 amp;
+varying vec2 center;
+const vec4 rgb2alt = vec4(256 * 256, 256 , 1, 0) * 256.0 * 0.01;
+const mat3 conv_c = mat3(vec3(0,-1, 0),vec3(-1, 4,-1), vec3(0,-1, 0));
+const mat3 conv_sx = mat3(vec3(-1, 0, 1),vec3(-2, 0, 2),vec3(-1, 0, 1));
+const mat3 conv_sy = mat3(vec3(-1,-2,-1),vec3(0, 0, 0),vec3( 1, 2, 1));
 
-float altitude(vec4 rgba) {
-  return (((rgba.r * 256.0) + rgba.g ) * 256.0 + rgba.b ) * 256.0 * 0.01;
+float conv(mat3 a, mat3 b){
+  return dot(a[0],b[0]) + dot(a[1],b[1]) + dot(a[2],b[2]);
 }
 
 void main() {
-  vec2 onePixel = vec2(1.0, 1.0) / u_textureSize;
+  mat3 h = mat3(
+    vec3(dot(texture2D(image, center + vec2(-1,-1) / size), rgb2alt),
+         dot(texture2D(image, center + vec2( 0,-1) / size), rgb2alt),
+         dot(texture2D(image, center + vec2( 1,-1) / size), rgb2alt)),
+    vec3(dot(texture2D(image, center + vec2(-1, 0) / size), rgb2alt),
+         dot(texture2D(image, center + vec2( 0, 0) / size), rgb2alt),
+         dot(texture2D(image, center + vec2( 1, 0) / size), rgb2alt)),
+    vec3(dot(texture2D(image, center + vec2(-1, 1) / size), rgb2alt),
+         dot(texture2D(image, center + vec2( 0, 1) / size), rgb2alt),
+         dot(texture2D(image, center + vec2( 1, 1) / size), rgb2alt))
+  );
 
-  vec4 m0 = texture2D(u_image, v_texCoord + onePixel * vec2( -1, -1));
-  vec4 m1 = texture2D(u_image, v_texCoord + onePixel * vec2(  0, -1));
-  vec4 m2 = texture2D(u_image, v_texCoord + onePixel * vec2(  1, -1));
-  vec4 m3 = texture2D(u_image, v_texCoord + onePixel * vec2( -1,  0));
-  vec4 m4 = texture2D(u_image, v_texCoord + onePixel * vec2(  0,  0));
-  vec4 m5 = texture2D(u_image, v_texCoord + onePixel * vec2(  1,  0));
-  vec4 m6 = texture2D(u_image, v_texCoord + onePixel * vec2( -1,  1));
-  vec4 m7 = texture2D(u_image, v_texCoord + onePixel * vec2(  0,  1));
-  vec4 m8 = texture2D(u_image, v_texCoord + onePixel * vec2(  1,  1));
-
-  float h0 = altitude(m0) / u_meterPerPixel;
-  float h1 = altitude(m1) / u_meterPerPixel;
-  float h2 = altitude(m2) / u_meterPerPixel;
-  float h3 = altitude(m3) / u_meterPerPixel;
-  float h4 = altitude(m4) / u_meterPerPixel;
-  float h5 = altitude(m5) / u_meterPerPixel;
-  float h6 = altitude(m6) / u_meterPerPixel;
-  float h7 = altitude(m7) / u_meterPerPixel;
-  float h8 = altitude(m8) / u_meterPerPixel;
-
-  float sx = (h2 + h5 + h5 + h8) - (h0 + h3 + h3 + h6);
-  float sy = (h6 + h7 + h7 + h8) - (h0 + h1 + h1 + h2);
-  float s = clamp(sqrt(sx * sx + sy * sy) * u_slope,0.0,1.0);
-  float c = clamp(((h4 - h1) + (h4 - h3) + (h4 - h5) + (h4 - h7)) * u_curvature,-1.0,1.0);
-
+  vec2 cs = vec2(
+    conv(h,conv_c),
+    length(vec2(conv(h , conv_sx),conv(h , conv_sy)))
+  ) * amp;
   gl_FragColor =
-    m4.r * 256.0 > 127.0 ?
-      vec4(0.0,0.0,0.0,0.0)
-      : c > 0.0 ?
-        vec4(1.0 * c,0.5 * c,0.0,s)
-        : vec4(0.0,0.0,c * -0.5,s);
-
+    h[1][1] > 4000.0 ? vec4(0) :
+     cs[0] > 0.0 ?
+        vec4(1.0 * cs[0], 0.5 * cs[0],0.0,cs[1])
+        : vec4(0.0,0.0,cs[0] * -0.5,cs[1]);
 }
 */
   }));
@@ -97,23 +81,14 @@ void main() {
 
     var w = image.width;
     var h = image.height;
-    var positionLocation = gl.getAttribLocation(program, "a_position");
-    var texcoordLocation = gl.getAttribLocation(program, "a_texCoord");
-    var resolutionLocation = gl.getUniformLocation(program, "u_resolution");
-    var textureSizeLocation = gl.getUniformLocation(program, "u_textureSize");
-    var meterPerPixelLocation = gl.getUniformLocation(program, "u_meterPerPixel");
-    var curvatureLocation = gl.getUniformLocation(program, "u_curvature");
-    var slopeLocation = gl.getUniformLocation(program, "u_slope");
-
-    // Create a buffer to put three 2d clip space points in
-    var positionBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, w, 0, 0, h, w, h]), gl.STATIC_DRAW);
+    var clipLocation = gl.getAttribLocation(program, "clip");
+    var sizeLocation = gl.getUniformLocation(program, "size");
+    var ampLocation = gl.getUniformLocation(program, "amp");
 
     // provide texture coordinates for the rectangle.
-    var texcoordBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]), gl.STATIC_DRAW);
+    var clipBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, clipBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
 
     // Create a texture.
     var texture = gl.createTexture();
@@ -125,19 +100,14 @@ void main() {
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
 
     gl.viewport(0, 0, w, h);
-    gl.enableVertexAttribArray(positionLocation);
-    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-    gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
 
-    gl.enableVertexAttribArray(texcoordLocation);
-    gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
-    gl.vertexAttribPointer(texcoordLocation, 2, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(clipLocation);
+    gl.bindBuffer(gl.ARRAY_BUFFER, clipBuffer);
+    gl.vertexAttribPointer(clipLocation, 2, gl.FLOAT, false, 0, 0);
 
-    gl.uniform2f(resolutionLocation, w, h);
-    gl.uniform2f(textureSizeLocation, w, h);
-    gl.uniform1f(meterPerPixelLocation, 10 * Math.pow(2, 14 - zoom));
-    gl.uniform1f(curvatureLocation, curvature);
-    gl.uniform1f(slopeLocation, slope);
+    gl.uniform2f(sizeLocation, w, h);
+    var z = 10 * Math.pow(2, 14 - zoom);
+    gl.uniform2f(ampLocation, curvature / z, slope / z);
 
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   };
@@ -195,6 +165,8 @@ void main() {
       canvas.style.height = size.y + "px";
       this._level.el.appendChild(canvas);
       var context = shadow.getContext("2d");
+      context.fillStyle = "#7f0000";
+      context.fillRect(0, 0, size.x, size.y);
       var origin = this._getTilePos(tileRange.min);
       for (var key in this._tiles) {
         var tile = this._tiles[key];
