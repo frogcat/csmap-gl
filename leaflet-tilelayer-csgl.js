@@ -1,27 +1,15 @@
 (function() {
 
-  var getString = function(fn) {
-    var s = fn.toString();
-    return s.substr(0, s.lastIndexOf("*/")).substr(s.indexOf("/*") + 2);
-  };
+  var vertexShaderSource =
+    "attribute vec2 clip;" +
+    "void main() {gl_Position = vec4(clip,0,1);}";
 
-  var vertexShaderSource = getString((function() {
-    /*
-attribute vec2 clip;
-varying vec2 center;
-void main() {
-  gl_Position = vec4(clip,0.0,1.0);
-  center = vec2(clip.x + 1.0, 1.0 - clip.y) * 0.5;
-}
-*/
-  }));
-  var fragmentShaderSource = getString((function() {
-    /*
+  var fragmentShaderSource = `
 precision mediump float;
 uniform sampler2D image;
-uniform vec2 size;
-uniform vec2 amp;
-varying vec2 center;
+uniform vec2 unit;
+uniform vec2 norm;
+uniform mat3 pallet;
 const vec4 rgb2alt = vec4(256 * 256, 256 , 1, 0) * 256.0 * 0.01;
 const mat3 conv_c = mat3(vec3(0,-1, 0),vec3(-1, 4,-1), vec3(0,-1, 0));
 const mat3 conv_sx = mat3(vec3(-1, 0, 1),vec3(-2, 0, 2),vec3(-1, 0, 1));
@@ -31,31 +19,29 @@ float conv(mat3 a, mat3 b){
   return dot(a[0],b[0]) + dot(a[1],b[1]) + dot(a[2],b[2]);
 }
 
-void main() {
-  mat3 h = mat3(
-    vec3(dot(texture2D(image, center + vec2(-1,-1) / size), rgb2alt),
-         dot(texture2D(image, center + vec2( 0,-1) / size), rgb2alt),
-         dot(texture2D(image, center + vec2( 1,-1) / size), rgb2alt)),
-    vec3(dot(texture2D(image, center + vec2(-1, 0) / size), rgb2alt),
-         dot(texture2D(image, center + vec2( 0, 0) / size), rgb2alt),
-         dot(texture2D(image, center + vec2( 1, 0) / size), rgb2alt)),
-    vec3(dot(texture2D(image, center + vec2(-1, 1) / size), rgb2alt),
-         dot(texture2D(image, center + vec2( 0, 1) / size), rgb2alt),
-         dot(texture2D(image, center + vec2( 1, 1) / size), rgb2alt))
-  );
+float alt(sampler2D i,vec2 p){
+  return dot(texture2D(i, p), rgb2alt);
+}
 
-  vec2 cs = vec2(
+void main() {
+  vec2 p = vec2(gl_FragCoord.x,1.0 / unit.y - gl_FragCoord.y);
+  mat3 h;
+  h[0][0] = alt(image, (p + vec2(-1,-1)) * unit);
+  h[0][1] = alt(image, (p + vec2( 0,-1)) * unit);
+  h[0][2] = alt(image, (p + vec2( 1,-1)) * unit);
+  h[1][0] = alt(image, (p + vec2(-1, 0)) * unit);
+  h[1][1] = alt(image, (p + vec2( 0, 0)) * unit);
+  h[1][2] = alt(image, (p + vec2( 1, 0)) * unit);
+  h[2][0] = alt(image, (p + vec2(-1, 1)) * unit);
+  h[2][1] = alt(image, (p + vec2( 0, 1)) * unit);
+  h[2][2] = alt(image, (p + vec2( 1, 1)) * unit);
+  vec2 cs = h[1][1] > 4000.0 ? vec2(0) : clamp(vec2(
     conv(h,conv_c),
     length(vec2(conv(h , conv_sx),conv(h , conv_sy)))
-  ) * amp;
-  gl_FragColor =
-    h[1][1] > 4000.0 ? vec4(0) :
-     cs[0] > 0.0 ?
-        vec4(1.0 * cs[0], 0.5 * cs[0],0.0,cs[1])
-        : vec4(0.0,0.0,cs[0] * -0.5,cs[1]);
-}
-*/
-  }));
+  ) * norm, -1.0,1.0);
+  gl_FragColor = vec4(cs[0] > 0.0 ? mix(pallet[1],pallet[2],cs[0]) : mix(pallet[1],pallet[0],-cs[0]) ,cs[1]);
+
+}`;
 
   var initProgram = function(gl) {
     var vs = gl.createShader(gl.VERTEX_SHADER);
@@ -77,13 +63,14 @@ void main() {
     }
   };
 
-  var render = function(gl, program, image, zoom, curvature, slope) {
+  var render = function(gl, program, image, zoom, curvature, slope, pallet) {
 
     var w = image.width;
     var h = image.height;
     var clipLocation = gl.getAttribLocation(program, "clip");
-    var sizeLocation = gl.getUniformLocation(program, "size");
-    var ampLocation = gl.getUniformLocation(program, "amp");
+    var unitLocation = gl.getUniformLocation(program, "unit");
+    var normLocation = gl.getUniformLocation(program, "norm");
+    var palletLocation = gl.getUniformLocation(program, "pallet");
 
     // provide texture coordinates for the rectangle.
     var clipBuffer = gl.createBuffer();
@@ -100,15 +87,13 @@ void main() {
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
 
     gl.viewport(0, 0, w, h);
-
     gl.enableVertexAttribArray(clipLocation);
     gl.bindBuffer(gl.ARRAY_BUFFER, clipBuffer);
     gl.vertexAttribPointer(clipLocation, 2, gl.FLOAT, false, 0, 0);
-
-    gl.uniform2f(sizeLocation, w, h);
+    gl.uniform2f(unitLocation, 1 / w, 1 / h);
     var z = 10 * Math.pow(2, 14 - zoom);
-    gl.uniform2f(ampLocation, curvature / z, slope / z);
-
+    gl.uniform2f(normLocation, curvature / z, slope / z);
+    gl.uniformMatrix3fv(palletLocation, false, pallet);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   };
 
@@ -116,7 +101,11 @@ void main() {
   L.TileLayer.CSGL = L.TileLayer.extend({
     options: {
       curvature: 2.0,
-      slope: 0.15
+      slope: 0.15,
+      errorTileColor: "#7f0000",
+      convexColor: "#f70",
+      concaveColor: "#007",
+      flatColor: "#000"
     },
     _initContainer: function() {
       L.TileLayer.prototype._initContainer.call(this);
@@ -165,7 +154,7 @@ void main() {
       canvas.style.height = size.y + "px";
       this._level.el.appendChild(canvas);
       var context = shadow.getContext("2d");
-      context.fillStyle = "#7f0000";
+      context.fillStyle = this.options.errorTileColor;
       context.fillRect(0, 0, size.x, size.y);
       var origin = this._getTilePos(tileRange.min);
       for (var key in this._tiles) {
@@ -180,7 +169,28 @@ void main() {
       L.DomUtil.setPosition(canvas, origin);
       var curvature = this.options.curvature || 2.0;
       var slope = this.options.slope || 0.15;
-      render(this._gl, this._pg, shadow, this._map.getZoom(), curvature, slope);
+      render(this._gl, this._pg, shadow, this._map.getZoom(), curvature, slope, this._pallet());
+    },
+    _pallet: function() {
+      var a = [];
+      [
+        this.options.concaveColor,
+        this.options.flatColor,
+        this.options.convexColor
+      ].forEach(function(b) {
+        if (b.toLowerCase().match(/^#(..)(..)(..)$/)) {
+          a.push(parseInt(RegExp.$1, 16) / 256);
+          a.push(parseInt(RegExp.$2, 16) / 256);
+          a.push(parseInt(RegExp.$3, 16) / 256);
+        } else if (b.toLowerCase().match(/^#(.)(.)(.)$/)) {
+          a.push(parseInt(RegExp.$1, 16) / 16);
+          a.push(parseInt(RegExp.$2, 16) / 16);
+          a.push(parseInt(RegExp.$3, 16) / 16);
+        } else {
+          a.push(0, 0, 0);
+        }
+      });
+      return new Float32Array(a);
     }
   });
 
