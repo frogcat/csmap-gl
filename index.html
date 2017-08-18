@@ -38,7 +38,7 @@
   <script>
     var map = L.map("map", L.extend({
       zoom: 12,
-      maxZoom: 14,
+      maxZoom: 15,
       center: [35.3538, 138.8279]
     }, L.Hash.parseHash(location.hash)));
     map.zoomControl.setPosition("bottomright");
@@ -47,9 +47,12 @@
       attribution: "<a href='http://maps.gsi.go.jp/development/ichiran.html'>地理院タイル</a>"
     }).addTo(map);
 
-    var layer = L.tileLayer.csgl("https://cyberjapandata.gsi.go.jp/xyz/dem_png/{z}/{x}/{y}.png?a", {
+    var layer = L.tileLayer.csgl("https://cyberjapandata.gsi.go.jp/xyz/{identifier}/{z}/{x}/{y}.png?a", {
       attribution: "<a href='http://maps.gsi.go.jp/development/ichiran.html'>地理院タイル</a>",
-      crossOrigin: true
+      crossOrigin: true,
+      identifier: function(coords) {
+        return coords.z === 15 ? "dem5a_png" : "dem_png";
+      }
     }).addTo(map);
     L.hash(map);
 
