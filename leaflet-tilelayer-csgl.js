@@ -142,6 +142,8 @@ void main() {
 
     _doPaint: function() {
 
+      if (!this._map) return;
+
       var center = this._map.getCenter();
       var pixelBounds = this._getTiledPixelBounds(center);
       var tileRange = this._pxBoundsToTileRange(pixelBounds);

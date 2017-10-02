@@ -47,24 +47,47 @@
       attribution: "<a href='http://maps.gsi.go.jp/development/ichiran.html'>地理院タイル</a>"
     }).addTo(map);
 
-    var layer = L.tileLayer.csgl("https://cyberjapandata.gsi.go.jp/xyz/{identifier}/{z}/{x}/{y}.png?a", {
-      attribution: "<a href='http://maps.gsi.go.jp/development/ichiran.html'>地理院タイル</a>",
-      crossOrigin: true,
-      identifier: function(coords) {
-        return coords.z === 15 ? "dem5a_png" : "dem_png";
-      },
-      maxZoom:18,
-      maxNativeZoom:15
-    }).addTo(map);
-    L.hash(map);
 
+    var layers = {
+      "DEM10B+DEM5A": L.tileLayer.csgl("https://cyberjapandata.gsi.go.jp/xyz/{identifier}/{z}/{x}/{y}.png?a", {
+        attribution: "<a href='http://maps.gsi.go.jp/development/ichiran.html'>地理院タイル</a>",
+        crossOrigin: true,
+        identifier: function(coords) {
+          return coords.z === 15 ? "dem5a_png" : "dem_png";
+        },
+        maxZoom: 18,
+        maxNativeZoom: 15
+      }).addTo(map),
+      "DEM10B+DEM5B": L.tileLayer.csgl("https://cyberjapandata.gsi.go.jp/xyz/{identifier}/{z}/{x}/{y}.png?a", {
+        attribution: "<a href='http://maps.gsi.go.jp/development/ichiran.html'>地理院タイル</a>",
+        crossOrigin: true,
+        identifier: function(coords) {
+          return coords.z === 15 ? "dem5b_png" : "dem_png";
+        },
+        maxZoom: 18,
+        maxNativeZoom: 15
+      }),
+      "DEM10B": L.tileLayer.csgl("https://cyberjapandata.gsi.go.jp/xyz/dem_png/{z}/{x}/{y}.png?a", {
+        attribution: "<a href='http://maps.gsi.go.jp/development/ichiran.html'>地理院タイル</a>",
+        crossOrigin: true,
+        maxZoom: 18,
+        maxNativeZoom: 14
+      })
+    };
+
+    L.control.layers(layers).addTo(map);
+
+    L.hash(map);
 
     $("#mixer input").on("input", function() {
       var curvature = parseFloat($("#curvature").val());
       var slope = parseFloat($("#slope").val());
-      layer.options.curvature = 3.0 * curvature / 100;
-      layer.options.slope = 1.0 * slope / 100;
-      layer._paint();
+      for (var key in layers) {
+        var layer = layers[key];
+        layer.options.curvature = 3.0 * curvature / 100;
+        layer.options.slope = 1.0 * slope / 100;
+        layer._paint();
+      }
     }).eq(1).trigger("input");
   </script>
 </body>
