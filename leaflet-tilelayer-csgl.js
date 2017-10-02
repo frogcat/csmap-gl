@@ -169,7 +169,7 @@ void main() {
       L.DomUtil.setPosition(canvas, origin);
       var curvature = this.options.curvature || 2.0;
       var slope = this.options.slope || 0.15;
-      render(this._gl, this._pg, shadow, this._map.getZoom(), curvature, slope, this._pallet());
+      render(this._gl, this._pg, shadow, this._tileZoom, curvature, slope, this._pallet());
     },
     _pallet: function() {
       var a = [];
