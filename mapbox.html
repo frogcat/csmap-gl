@@ -127,7 +127,7 @@ void main() {
         var layer = layers[key];
         layer.options.argv[0] = 3.0 * curvature / 100;
         layer.options.argv[1] = 1.0 * slope / 100;
-        layer._paint();
+        layer.repaint();
       }
     }).eq(1).trigger("input");
   </script>
