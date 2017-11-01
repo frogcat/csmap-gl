@@ -90,9 +90,17 @@ void main() {
     }, L.Hash.parseHash(location.hash)));
     map.zoomControl.setPosition("bottomright");
 
-    L.tileLayer("https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png", {
-      attribution: "<a href='http://maps.gsi.go.jp/development/ichiran.html'>地理院タイル</a>"
-    }).addTo(map);
+    var opt = {
+      attribution: "<a href='http://maps.gsi.go.jp/development/ichiran.html'>地理院タイル</a>",
+      id: "pale",
+      suffix: "png"
+    };
+    if (location.search.match(/^\?(.*)\/(.*)$/)) {
+      opt.id = RegExp.$1;
+      opt.suffix = RegExp.$2;
+    }
+
+    L.tileLayer("https://cyberjapandata.gsi.go.jp/xyz/{id}/{z}/{x}/{y}.{suffix}", opt).addTo(map);
 
 
     var layers = {
