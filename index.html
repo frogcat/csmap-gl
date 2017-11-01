@@ -95,7 +95,7 @@ void main() {
       id: "pale",
       suffix: "png"
     };
-    if (location.search.match(/^\?(.*)\/(.*)$/)) {
+    if (location.search.replace("%2F","/").match(/^\?(.*)\/(.*)$/)) {
       opt.id = RegExp.$1;
       opt.suffix = RegExp.$2;
     }
