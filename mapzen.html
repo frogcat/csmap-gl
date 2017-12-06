@@ -3,10 +3,10 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>csmap-gl mapbox</title>
+  <title>csmap-gl mapzen</title>
   <meta name="viewport" content="initial-scale=1.0, maximum-scale=1.0" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.2.0/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.2.0/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.1.0/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.1.0/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet-hash@0.2.1/leaflet-hash.js"></script>
   <script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
   <script src="https://frogcat.github.io/leaflet-tilelayer-glue/leaflet-tilelayer-glue.js"></script>
@@ -36,10 +36,6 @@
     </dl>
   </div>
   <script>
-    var MAPBOX_PUBLIC_ACCESS_TOKEN = "pk.eyJ1IjoiZnJvZ2NhdCIsImEiOiJlYmE4ZTE4ZGEzMDAxNWQ5MWIyYmQ0MmFhN2Q5MDUyMCJ9.2jx0Hl7cJmXX4I7pZ-FtYA";
-    var MAPBOX_TERRAIN_RGB = "https://api.mapbox.com/v4/mapbox.terrain-rgb/{z}/{x}/{y}.pngraw?access_token=" + MAPBOX_PUBLIC_ACCESS_TOKEN;
-    var MAPBOX_BASEMAP = "https://api.mapbox.com/v4/mapbox.streets/{z}/{x}/{y}.png?access_token=" + MAPBOX_PUBLIC_ACCESS_TOKEN;
-
     var fragmentShader = (function() {
       /*
 precision mediump float;
@@ -60,7 +56,7 @@ float conv(mat3 a, mat3 b){
 
 float alt(sampler2D i,vec2 p){
   vec4 rgba = texture2D(i,p);
-  return -10000.0  + (((rgba.r * 256.0) + rgba.g ) * 256.0 + rgba.b ) * 256.0 * 0.1;
+  return (rgba.r * 256.0 * 256.0 + rgba.g * 256.0 + rgba.b) - 32768.0;
 }
 
 void main() {
@@ -77,7 +73,7 @@ void main() {
   h[2][2] = alt(image, (p + vec2( 1, 1)) * unit);
   float z = 10.0 * exp2(14.0 - zoom);
 
-  vec2 cs = h[1][1] > 10000.0 ? vec2(0) : clamp(vec2(
+  vec2 cs = clamp(vec2(
     conv(h,conv_c),
     length(vec2(conv(h , conv_sx),conv(h , conv_sy)))
   ) * vec2(argv[0] / z,argv[1] / z), -1.0 ,1.0);
@@ -94,41 +90,25 @@ void main() {
     }, L.Hash.parseHash(location.hash)));
     map.zoomControl.setPosition("bottomright");
 
-    L.tileLayer(MAPBOX_BASEMAP, {
-      attribution: "© <a href='https://www.mapbox.com/map-feedback/'>Mapbox</a>" +
-        " © <a href='http://www.openstreetmap.org/copyright'>OpenStreetMap</a>" +
-        " <strong><a href='https://www.mapbox.com/map-feedback/' target='_blank'>Improve this map</a></strong>"
+    L.tileLayer("http://{s}.tile.osm.org/{z}/{x}/{y}.png", {
+      attribution: "&copy; <a href='http://osm.org/copyright'>OpenStreetMap</a> contributors"
     }).addTo(map);
 
-
-    var layers = {};
-
-    for (var i = 8; i < 19; i++) {
-      var layer = L.tileLayer.glue(MAPBOX_TERRAIN_RGB, {
-        attribution: "© <a href='https://www.mapbox.com/map-feedback/'>Mapbox</a>" +
-          " © <a href='http://www.openstreetmap.org/copyright'>OpenStreetMap</a>" +
-          " <strong><a href='https://www.mapbox.com/map-feedback/' target='_blank'>Improve this map</a></strong>",
-        argv: [0, 0, 0, 0],
-        fragmentShader: fragmentShader,
-        maxNativeZoom: i
-      });
-      layers["maxzoom=" + i] = layer;
-      if (i === 14) layer.addTo(map);
-    }
-
-    L.control.layers(layers).addTo(map);
+    var layer = L.tileLayer.glue("https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png", {
+      attribution: "<a href='https://mapzen.com/documentation/terrain-tiles/'>Mapzen Terrain Tile Service",
+      argv: [0, 0, 0, 0],
+      fragmentShader: fragmentShader,
+      maxNativeZoom: 15
+    }).addTo(map);
 
     L.hash(map);
 
     $("#mixer input").on("change input", function() {
       var curvature = parseFloat($("#curvature").val());
       var slope = parseFloat($("#slope").val());
-      for (var key in layers) {
-        var layer = layers[key];
-        layer.options.argv[0] = 3.0 * curvature / 100;
-        layer.options.argv[1] = 1.0 * slope / 100;
-        layer.repaint();
-      }
+      layer.options.argv[0] = 3.0 * curvature / 100;
+      layer.options.argv[1] = 1.0 * slope / 100;
+      layer.repaint();
     }).eq(1).trigger("input");
   </script>
 </body>
