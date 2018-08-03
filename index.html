@@ -90,63 +90,54 @@ void main() {
     }, L.Hash.parseHash(location.hash)));
     map.zoomControl.setPosition("bottomright");
 
-    var opt = {
-      attribution: "<a href='http://maps.gsi.go.jp/development/ichiran.html'>地理院タイル</a>",
-      id: "pale",
-      suffix: "png"
-    };
-    if (location.search.replace("%2F","/").match(/^\?(.*)\/(.*)$/)) {
-      opt.id = RegExp.$1;
-      opt.suffix = RegExp.$2;
-    }
-
-    L.tileLayer("https://cyberjapandata.gsi.go.jp/xyz/{id}/{z}/{x}/{y}.{suffix}", opt).addTo(map);
-
-
-    var layers = {
-      "DEM10B+DEM5A": L.tileLayer.glue("https://cyberjapandata.gsi.go.jp/xyz/{identifier}/{z}/{x}/{y}.png?a", {
+    var layers = L.control.layers({
+      "地理院タイル(淡色地図)": L.tileLayer("https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png", {
         attribution: "<a href='http://maps.gsi.go.jp/development/ichiran.html'>地理院タイル</a>",
-        identifier: function(coords) {
-          return coords.z === 15 ? "dem5a_png" : "dem_png";
-        },
-        maxZoom: 18,
-        maxNativeZoom: 15,
-        argv: [0, 0, 0, 0],
-        fragmentShader: fragmentShader
       }).addTo(map),
-      "DEM10B+DEM5B": L.tileLayer.glue("https://cyberjapandata.gsi.go.jp/xyz/{identifier}/{z}/{x}/{y}.png?a", {
-        attribution: "<a href='http://maps.gsi.go.jp/development/ichiran.html'>地理院タイル</a>",
-        identifier: function(coords) {
-          return coords.z === 15 ? "dem5b_png" : "dem_png";
-        },
-        maxZoom: 18,
-        maxNativeZoom: 15,
-        argv: [0, 0, 0, 0],
-        fragmentShader: fragmentShader
-      }),
-      "DEM10B": L.tileLayer.glue("https://cyberjapandata.gsi.go.jp/xyz/dem_png/{z}/{x}/{y}.png?a", {
-        attribution: "<a href='http://maps.gsi.go.jp/development/ichiran.html'>地理院タイル</a>",
-        maxZoom: 18,
-        maxNativeZoom: 14,
-        argv: [0, 0, 0, 0],
-        fragmentShader: fragmentShader
+      "OpenStreetMap": L.tileLayer("http://{s}.tile.osm.org/{z}/{x}/{y}.png", {
+        attribution: "&copy; <a href='http://osm.org/copyright'>OpenStreetMap</a> contributors"
       })
-    };
+    }, {}).addTo(map);
 
-    L.control.layers(layers).addTo(map);
+    var img = new Image();
+    img.onload = function() {
+      var canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      var context = canvas.getContext("2d");
+      context.drawImage(img, 0, 0);
+      var tokens = img.src.replace(/^.*\//, "").split(/[\-\.]/);
+      var ox = parseInt(tokens[1]);
+      var oy = parseInt(tokens[2]);
+      var layer = L.tileLayer.glue("https://cyberjapandata.gsi.go.jp/xyz/{id}/{z}/{x}/{y}.png", {
+        attribution: "<a href='http://maps.gsi.go.jp/development/ichiran.html'>地理院タイル</a>",
+        maxNativeZoom: 15,
+        id: function(coords) {
+          if (coords.z < 9) return "demgm_png";
+          if (coords.z < 15) return "dem_png";
+          var rgba = context.getImageData(coords.x - ox, coords.y - oy, 1, 1).data;
+          if (rgba[0]) return "dem5a_png";
+          if (rgba[1]) return "dem5b_png";
+          return "pale";
+        },
+        argv: [0, 0, 0, 0],
+        fragmentShader: fragmentShader,
+        pane: 'overlayPane'
+      }).addTo(map);
 
-    L.hash(map);
+      layers.addOverlay(layer, "CS立体図");
 
-    $("#mixer input").on("change input", function() {
-      var curvature = parseFloat($("#curvature").val());
-      var slope = parseFloat($("#slope").val());
-      for (var key in layers) {
-        var layer = layers[key];
+      $("#mixer input").on("change input", function() {
+        var curvature = parseFloat($("#curvature").val());
+        var slope = parseFloat($("#slope").val());
         layer.options.argv[0] = 3.0 * curvature / 100;
         layer.options.argv[1] = 1.0 * slope / 100;
         layer.repaint();
-      }
-    }).eq(1).trigger("input");
+      }).eq(1).trigger("input");
+    };
+    img.src = "dem15-27677-11757.png";
+
+    L.hash(map);
   </script>
 </body>
 
