@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <title>csmap-gl:兵庫県DEM(z=17)</title>
+  <meta name="viewport" content="initial-scale=1.0, maximum-scale=1.0" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.2.0/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.2.0/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-hash@0.2.1/leaflet-hash.js"></script>
+  <script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
+  <script src="https://frogcat.github.io/leaflet-tilelayer-glue/leaflet-tilelayer-glue.js"></script>
+  <style>
+    #mixer {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      width: auto;
+      height: auto;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      z-index: 10000;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="map" style="position:absolute;top:0;left:0;bottom:0;right:0;"></div>
+  <div id="mixer">
+    <dl style="margin:10px;">
+      <dt>curvature</dt>
+      <dd><input type="range" id="curvature" min="1" max="100" value="50" /></dd>
+      <dt>slope</dt>
+      <dd><input type="range" id="slope" min="1" max="100" value="20" /></dd>
+    </dl>
+  </div>
+  <script>
+    var fragmentShader = (function() {
+      /*
+precision mediump float;
+uniform sampler2D image;
+uniform vec2 unit;
+uniform vec4 argv;
+uniform float zoom;
+const vec4 rgb2alt = vec4(256 * 256, 256 , 1, 0) * 256.0 * 0.01;
+const mat3 conv_c = mat3(vec3(0,-1, 0),vec3(-1, 4,-1), vec3(0,-1, 0));
+const mat3 conv_sx = mat3(vec3(-1, 0, 1),vec3(-2, 0, 2),vec3(-1, 0, 1));
+const mat3 conv_sy = mat3(vec3(-1,-2,-1),vec3(0, 0, 0),vec3( 1, 2, 1));
+const vec3 color_convex  = vec3(1.0,0.5,0.0);
+const vec3 color_concave = vec3(0.0,0.0,0.5);
+const vec3 color_flat    = vec3(0.0,0.0,0.0);
+
+float conv(mat3 a, mat3 b){
+  return dot(a[0],b[0]) + dot(a[1],b[1]) + dot(a[2],b[2]);
+}
+
+float alt(sampler2D i,vec2 p){
+  return dot(texture2D(i, p), rgb2alt);
+}
+
+void main() {
+  vec2 p = vec2(gl_FragCoord.x,1.0 / unit.y - gl_FragCoord.y);
+  mat3 h;
+  h[0][0] = alt(image, (p + vec2(-1,-1)) * unit);
+  h[0][1] = alt(image, (p + vec2( 0,-1)) * unit);
+  h[0][2] = alt(image, (p + vec2( 1,-1)) * unit);
+  h[1][0] = alt(image, (p + vec2(-1, 0)) * unit);
+  h[1][1] = alt(image, (p + vec2( 0, 0)) * unit);
+  h[1][2] = alt(image, (p + vec2( 1, 0)) * unit);
+  h[2][0] = alt(image, (p + vec2(-1, 1)) * unit);
+  h[2][1] = alt(image, (p + vec2( 0, 1)) * unit);
+  h[2][2] = alt(image, (p + vec2( 1, 1)) * unit);
+  float z = 10.0 * exp2(14.0 - zoom);
+
+  vec2 cs = h[1][1] > 4000.0 ? vec2(0) : clamp(vec2(
+    conv(h,conv_c),
+    length(vec2(conv(h , conv_sx),conv(h , conv_sy)))
+  ) * vec2(argv[0] / z,argv[1] / z), -1.0 ,1.0);
+  gl_FragColor = vec4(cs[0] > 0.0 ? mix(color_flat,color_convex,cs[0]) : mix(color_flat,color_concave,-cs[0]) ,cs[1]);
+
+}*/
+    }).toString().split("/*")[1].split("*/")[0];
+
+
+    var map = L.map("map", L.extend({
+      zoom: 14,
+      maxZoom: 20,
+      center: [34.9936, 134.5528]
+    }, L.Hash.parseHash(location.hash)));
+    map.zoomControl.setPosition("bottomright");
+
+    var layers = L.control.layers({
+      "地理院タイル(淡色地図)": L.tileLayer("https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png", {
+        attribution: "<a href='http://maps.gsi.go.jp/development/ichiran.html'>地理院タイル</a>",
+      }).addTo(map),
+      "地理院タイル(写真)": L.tileLayer("https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg", {
+        attribution: "<a href='http://maps.gsi.go.jp/development/ichiran.html'>地理院タイル</a>",
+      }),
+      "OpenStreetMap": L.tileLayer("http://{s}.tile.osm.org/{z}/{x}/{y}.png", {
+        attribution: "&copy; <a href='http://osm.org/copyright'>OpenStreetMap</a> contributors"
+      })
+    }, {}).addTo(map);
+
+    var layer = L.tileLayer.glue("https://tiles.gsj.jp/tiles/elev/hyogodem/{z}/{y}/{x}.png", {
+      attribution: "<a href='https://gbank.gsj.jp/seamless/elev/tile.html'>シームレス標高タイル／兵庫県DEM(産総研地質調査総合センター)</a>",
+      maxNativeZoom: 17,
+      argv: [0, 0, 0, 0],
+      fragmentShader: fragmentShader,
+      pane: 'overlayPane'
+    }).addTo(map);
+
+    layers.addOverlay(layer, "CS立体図");
+
+    $("#mixer input").on("change input", function() {
+      var curvature = parseFloat($("#curvature").val());
+      var slope = parseFloat($("#slope").val());
+      layer.options.argv[0] = 3.0 * curvature / 100;
+      layer.options.argv[1] = 1.0 * slope / 100;
+      layer.repaint();
+    }).eq(1).trigger("input");
+
+    L.hash(map);
+  </script>
+</body>
+
+</html>
