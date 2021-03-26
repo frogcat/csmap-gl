@@ -7,4 +7,3 @@ WebGL version of Curvature and Slope Map
 ## Demo
 
 * [Around Japan](https://frogcat.github.io/csmap-gl/), using [GSI's PNG DEM Tiles](https://maps.gsi.go.jp/development/demtile.html) supported zoom level : 0-15
-* [World Wide](https://frogcat.github.io/csmap-gl/mapbox.html), using [Mapbox's Terrain-RGB](https://blog.mapbox.com/global-elevation-data-6689f1d0ba65) supported zoom level : depends on region
